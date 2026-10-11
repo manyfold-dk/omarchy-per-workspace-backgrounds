@@ -17,14 +17,14 @@ Enabling it switches off the built-in `omarchy.background`. There is nothing to 
 | You | What happens |
 |---|---|
 | Switch workspace | The background changes, with the same reveal transition Omarchy uses |
-| Run `omarchy theme bg next`, pick one in the background switcher (double-click the desktop), or run `omarchy theme bg set <image>` | Only the focused workspace changes, and it keeps that background |
-| Switch theme | Per-workspace choices reset. The focused workspace keeps the background the theme switch chose; the other workspaces get the rest of the new theme's backgrounds |
+| Run `omarchy theme bg next`, pick one in the background switcher (double-click the desktop), or run `omarchy theme bg set <image>` | Only the focused workspace changes, and it keeps that background until you switch theme |
+| Switch theme | Per-workspace choices reset: workspace N shows the new theme's Nth background |
 | Lock the screen | The lock screen shows the focused workspace's background |
 | Use several monitors | Each monitor follows its own active workspace |
 
-The backgrounds are the ones `omarchy theme bg next` cycles through, in the same order (by file name): the theme's own `backgrounds/` folder plus `~/.config/omarchy/backgrounds/<theme>/`. Add images to the latter for more variety; `omarchy theme bg install` opens it.
+The backgrounds are the ones `omarchy theme bg next` cycles through, in the same order: the theme's own `backgrounds/` folder plus `~/.config/omarchy/backgrounds/<theme>/`, sorted by file name. Add images to the latter for more variety; `omarchy theme bg install` opens it. Number prefixes (`1-...`, `2-...`) decide which workspace gets which.
 
-The plugin keeps its state in `~/.local/state/omarchy/workspace-backgrounds.json`: the theme it applies to, the rotation, and the backgrounds you picked per workspace. Omarchy's `~/.local/state/omarchy/current/background` link follows the focused workspace.
+The plugin keeps its state in `~/.local/state/omarchy/workspace-backgrounds.json`: the theme it applies to and the backgrounds you picked per workspace. Omarchy's `~/.local/state/omarchy/current/background` link follows the focused workspace.
 
 ## Remove
 
