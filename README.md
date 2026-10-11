@@ -35,6 +35,7 @@ The plugin keeps its state in `~/.local/state/omarchy/workspace-backgrounds.json
 ```bash
 omarchy plugin remove manyfold.workspace-backgrounds
 rm -f ~/.local/state/omarchy/workspace-backgrounds.json
+rm -rf ~/.cache/omarchy/workspace-backgrounds
 ```
 
 Removing the plugin switches the built-in background renderer back on. To keep the plugin installed but use the built-in renderer for a while, see [Turning them on and off](https://omarchy.org/manual/shell-plugins/#turning-them-on-and-off).
@@ -43,17 +44,24 @@ Removing the plugin switches the built-in background renderer back on. To keep t
 
 - Omarchy Quattro (4.x) on Hyprland.
 - Still images only: [video backgrounds](https://omarchy.org/manual/backgrounds/) are not supported, and an animated GIF shows its first frame.
-- No dependencies beyond what Omarchy ships (`bash`, `find`, `ln`, `readlink`).
+- No dependencies beyond what Omarchy ships (`bash`, `find`, `ln`, `readlink`, `sha1sum`, and ImageMagick's `magick`).
 
 The plugin is derived from Omarchy's own [background plugin](https://github.com/omacom/omarchy/tree/quattro/shell/plugins/background) and keeps its IPC interface (`omarchy-shell background ...`), transitions and double-click actions. When Omarchy changes that plugin in a way this one has to follow, please open an issue.
 
 ## Performance
 
-- **Idle:** no cost. The plugin runs no timers and polls nothing; a background that is on screen costs what Omarchy's built-in renderer costs.
-- **Each workspace switch:** the plugin decodes the incoming background at the screen's size and plays the reveal. The built-in renderer does nothing on a switch, because it shows the same background everywhere.
-- **Measured** with the Starship theme (WebP files from 6016x3384 to 8192x5461) on a 2560x1600 display: about 0.3 s of CPU per switch in the shell process, against 0.03 s with the built-in renderer. Memory peaks about 190 MB higher while the full-size file is decoded and drops back afterwards.
-- **Scales with file size:** most of that time goes into decoding the full-size file before it is scaled to the screen, so themes with smaller background files cost less per switch.
-- **Several monitors:** each monitor decodes for its own screen when its workspace changes.
+| | Built-in renderer | This plugin |
+|---|---|---|
+| Idle | No cost | No cost: no timers, nothing polled |
+| CPU per workspace switch | 31 ms | 98 ms |
+| Memory peak while switching | +0 MB | +18 MB, released afterwards |
+
+Measured on a MacBook Pro (13-inch, 2020: Intel Core i5-1038NG7, Iris Plus Graphics G7, 16 GB) with its 2560x1600 display, running Omarchy 4.0 on Arch Linux with Hyprland 0.56, Quickshell 0.3 and Qt 6.11. The theme was Starship, whose backgrounds are WebP files from 6016x3384 to 8192x5461. CPU is the shell process's time over eight workspace switches, minus the same stretch idle.
+
+- **On a switch** the plugin decodes a screen-size copy of the incoming background and plays the reveal. The built-in renderer does nothing on a switch, because it shows the same background everywhere.
+- **The copies** are made in the background, at low priority, the first time a theme is used: a few seconds for Starship's four files. They live in `~/.cache/omarchy/workspace-backgrounds/`, about 1 MB per background per screen size (JPEG, or PNG for images with transparency), named by their content, and are deleted after 30 days unused. A background no larger than the screen gets no copy; it is cheap to decode as it is.
+- **Until a copy is ready**, right after a theme is used for the first time, a switch decodes the full-size file instead: about 0.3 s of CPU with Starship on the machine above.
+- **Several monitors** each decode for their own screen, with copies per screen size.
 
 ## Development
 
@@ -64,7 +72,7 @@ node --test Model.test.mjs
 omarchy plugin validate .
 ```
 
-`Background.qml` is the renderer. Edits under `~/.config/omarchy/plugins/` normally reload on save; if the shell keeps running the old code, `omarchy restart shell` loads the new one. [Writing your own](https://omarchy.org/manual/shell-plugins/#writing-your-own) in the manual and the [shell reference](https://github.com/omacom/omarchy/blob/quattro/docs/omarchy-shell.md) cover the plugin interface.
+`Background.qml` is the renderer, and `screen-copies.sh` makes the screen-size copies it decodes. Edits under `~/.config/omarchy/plugins/` normally reload on save; if the shell keeps running the old code, `omarchy restart shell` loads the new one. [Writing your own](https://omarchy.org/manual/shell-plugins/#writing-your-own) in the manual and the [shell reference](https://github.com/omacom/omarchy/blob/quattro/docs/omarchy-shell.md) cover the plugin interface.
 
 ## License
 
