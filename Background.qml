@@ -51,7 +51,10 @@ Item {
     }
     return sizes
   }
-  readonly property string copiesRequest: ready && decodeSizes.length > 0 ? JSON.stringify([decodeSizes, Model.copyPaths(backgrounds, pins)]) : ""
+  // The theme generation is part of the request: a theme reset clears the
+  // copies, and a theme with the same file names would otherwise leave the
+  // request unchanged and never get them back.
+  readonly property string copiesRequest: ready && decodeSizes.length > 0 ? JSON.stringify([themeGeneration, decodeSizes, Model.copyPaths(backgrounds, pins)]) : ""
 
   onCopiesRequestChanged: copiesTimer.restart()
   property bool ready: false
@@ -91,7 +94,7 @@ Item {
     }
     var request = JSON.parse(copiesRequest)
     copiesProc.generation = themeGeneration
-    copiesProc.command = ["bash", copiesScript, copiesDir, request[0].join(",")].concat(request[1])
+    copiesProc.command = ["bash", copiesScript, copiesDir, request[1].join(",")].concat(request[2])
     copiesProc.running = true
   }
 
