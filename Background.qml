@@ -35,6 +35,25 @@ Item {
   property var pins: ({})
   // Bumped on every theme change; see imageUrl.
   property int themeGeneration: 0
+
+  // Screen-size copies of the backgrounds ("WxH|path" -> copy), filled in by
+  // screen-copies.sh as each copy is ready. A switch then decodes a few
+  // megapixels instead of the full file.
+  readonly property string copiesDir: (Quickshell.env("XDG_CACHE_HOME") || home + "/.cache") + "/omarchy/workspace-backgrounds"
+  readonly property string copiesScript: decodeURIComponent(String(Qt.resolvedUrl("screen-copies.sh")).replace(/^file:\/\//, ""))
+  property var screenCopies: ({})
+  property bool copiesQueued: false
+  readonly property var decodeSizes: {
+    var sizes = []
+    for (var i = 0; i < screens.instances.length; i++) {
+      var size = screens.instances[i].sizeKey
+      if (size && sizes.indexOf(size) === -1) sizes.push(size)
+    }
+    return sizes
+  }
+  readonly property string copiesRequest: ready && decodeSizes.length > 0 ? JSON.stringify([decodeSizes, Model.copyPaths(backgrounds, pins)]) : ""
+
+  onCopiesRequestChanged: copiesTimer.restart()
   property bool ready: false
   property bool scanned: false
   property bool stateLoaded: false
@@ -59,8 +78,31 @@ Item {
   // The theme generation is part of every image URL. A new theme can ship a
   // file under a name the old one used (every stock theme has an omarchy.png
   // at the same path), and an unchanged URL would keep the old decode.
-  function imageUrl(path, generation) {
-    return path ? Util.fileUrl(path) + "?g=" + generation : ""
+  function imageUrl(path, generation, size) {
+    if (!path) return ""
+    return Util.fileUrl(screenCopies[Model.copyKey(size, path)] || path) + "?g=" + generation
+  }
+
+  function makeScreenCopies() {
+    if (!copiesRequest) return
+    if (copiesProc.running) {
+      copiesQueued = true
+      return
+    }
+    var request = JSON.parse(copiesRequest)
+    copiesProc.generation = themeGeneration
+    copiesProc.command = ["bash", copiesScript, copiesDir, request[0].join(",")].concat(request[1])
+    copiesProc.running = true
+  }
+
+  function addScreenCopy(line) {
+    // Copies made for the previous theme can name a path the new theme reuses.
+    if (copiesProc.generation !== themeGeneration) return
+    var copy = Model.parseScreenCopy(line)
+    if (!copy) return
+    var next = Object.assign({}, screenCopies)
+    next[copy.key] = copy.path
+    screenCopies = next
   }
 
   function workspaceIdFor(monitor) {
@@ -90,6 +132,7 @@ Item {
   // switch reveals the focused workspace's default from the old background.
   function resetForTheme(themeSwitch) {
     themeGeneration += 1
+    screenCopies = {}
     if (themeSwitch) {
       var target = Model.defaultBackground(backgrounds, focusedWorkspaceId)
       focusedTransitionRequested(themeSwitch.fromPath, target, target, false, true)
@@ -222,6 +265,27 @@ Item {
   }
 
   Process {
+    id: copiesProc
+    property int generation: -1
+    stdout: SplitParser {
+      onRead: function(data) { root.addScreenCopy(data) }
+    }
+    onExited: {
+      if (!root.copiesQueued) return
+      root.copiesQueued = false
+      root.makeScreenCopies()
+    }
+  }
+
+  // Waits for the screens and the mapping to settle before making copies.
+  Timer {
+    id: copiesTimer
+    interval: 500
+    repeat: false
+    onTriggered: root.makeScreenCopies()
+  }
+
+  Process {
     id: linkProc
     onExited: {
       if (command[2] === root.pendingLink) return
@@ -291,6 +355,7 @@ Item {
   Component.onCompleted: rescan()
 
   Variants {
+    id: screens
     model: Quickshell.screens
 
     PanelWindow {
@@ -322,6 +387,7 @@ Item {
       // decodes at full size first.
       readonly property bool sized: width > 0 && height > 0
       readonly property size decodeSize: Qt.size(Math.ceil(width * modelData.devicePixelRatio), Math.ceil(height * modelData.devicePixelRatio))
+      readonly property string sizeKey: sized ? Model.sizeKey(decodeSize.width, decodeSize.height) : ""
 
       // Follow the mapping once per event-loop turn, after a scan or a theme
       // switch has finished changing it.
@@ -352,16 +418,16 @@ Item {
           incomingBackground = ""
           incomingUrl = ""
           displayedBackground = path
-          displayedUrl = root.imageUrl(path, generation)
+          displayedUrl = root.imageUrl(path, generation, sizeKey)
           revealProgress = 1
           return
         }
 
         // The outgoing frame is the image base already shows, under the same
         // URL, so it reuses that decode.
-        oldUrl = fromPath ? root.imageUrl(fromPath, generation) : displayedUrl
+        oldUrl = fromPath ? root.imageUrl(fromPath, generation, sizeKey) : displayedUrl
         incomingBackground = path
-        incomingUrl = root.imageUrl(path, generation)
+        incomingUrl = root.imageUrl(path, generation, sizeKey)
         revealProgress = 0
       }
 
@@ -414,7 +480,10 @@ Item {
         onFinished: {
           if (panel.incomingBackground) {
             panel.displayedBackground = panel.currentBackground || panel.incomingBackground
-            panel.displayedUrl = root.imageUrl(panel.displayedBackground, panel.currentGeneration)
+            // Normally the incoming frame's URL, so base takes over its decode.
+            panel.displayedUrl = panel.displayedBackground === panel.incomingBackground
+              ? panel.incomingUrl
+              : root.imageUrl(panel.displayedBackground, panel.currentGeneration, panel.sizeKey)
             panel.finishingTransition = true
             // Base usually takes over the incoming frame's cached decode: it is
             // ready at once and reports no status change.

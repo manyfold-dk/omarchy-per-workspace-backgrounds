@@ -83,3 +83,23 @@ test("restoring keeps only well-formed pins", () => {
   const text = JSON.stringify({ theme: "example", pins: { 1: A, two: B, 3: "", 4: 7, "-5": C } });
   assert.deepEqual(plain(Model.restoredPins(text, "example")), { 1: A, "-5": C });
 });
+
+test("a size key needs both dimensions", () => {
+  assert.equal(Model.sizeKey(2560, 1600), "2560x1600");
+  assert.equal(Model.sizeKey(0, 1600), "");
+});
+
+test("a screen copy line maps size and path to the copy", () => {
+  const line = `2560x1600|${A}\t/cache/ab12-2560x1600.jpg`;
+  assert.deepEqual(plain(Model.parseScreenCopy(line)), { key: Model.copyKey("2560x1600", A), path: "/cache/ab12-2560x1600.jpg" });
+});
+
+test("malformed screen copy lines are ignored", () => {
+  for (const line of ["", "no tab", `2560x1600|${A}\t`, `\t/cache/x.jpg`, `big|${A}\t/cache/x.jpg`]) {
+    assert.equal(Model.parseScreenCopy(line), null, line);
+  }
+});
+
+test("copy paths are the theme's backgrounds, then pinned images from elsewhere, once each", () => {
+  assert.deepEqual(plain(Model.copyPaths(BACKGROUNDS, { 2: ELSEWHERE, 3: A, 7: ELSEWHERE })), [...BACKGROUNDS, ELSEWHERE]);
+});

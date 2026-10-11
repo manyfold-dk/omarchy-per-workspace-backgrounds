@@ -68,3 +68,32 @@ function restoredPins(text, theme) {
 function serialized(theme, pins) {
   return JSON.stringify({ version: STATE_VERSION, theme: theme, pins: pins }, null, 2) + "\n"
 }
+
+// Screen-size copies (see screen-copies.sh) are keyed by decode size and path.
+function sizeKey(width, height) {
+  return width > 0 && height > 0 ? Math.round(width) + "x" + Math.round(height) : ""
+}
+
+function copyKey(size, path) {
+  return size + "|" + path
+}
+
+// screen-copies.sh prints "<WxH>|<path><TAB><copy>" per copy.
+function parseScreenCopy(line) {
+  var text = String(line || "")
+  var tab = text.indexOf("\t")
+  if (tab <= 0 || tab === text.length - 1) return null
+  var key = text.slice(0, tab)
+  if (!/^\d+x\d+\|./.test(key)) return null
+  return { key: key, path: text.slice(tab + 1) }
+}
+
+// Every image a workspace can show: the theme's backgrounds, then pinned
+// images from elsewhere, each once.
+function copyPaths(backgrounds, pins) {
+  var paths = backgrounds.slice()
+  for (var key in pins) {
+    if (pins[key] && paths.indexOf(pins[key]) === -1) paths.push(pins[key])
+  }
+  return paths
+}
