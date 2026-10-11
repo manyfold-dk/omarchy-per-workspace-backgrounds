@@ -17,8 +17,9 @@ import "Model.js" as Model
 // Workspace N shows the Nth background of the current theme, wrapping, in the
 // order omarchy-theme-bg-next cycles them. Setting a background (bg next, the
 // background switcher, omarchy theme bg set) pins it to the focused workspace
-// only. The current/background symlink follows the focused workspace, so bg
-// next, the lock screen and theme transitions all see what is on screen.
+// until the theme changes. The current/background symlink follows the focused
+// workspace, so bg next, the lock screen and theme transitions all see what
+// is on screen.
 Item {
   id: root
 
@@ -31,16 +32,14 @@ Item {
   // are both in.
   property string themeName: ""
   property var backgrounds: []
-  property int offset: 0
   property var pins: ({})
   property bool ready: false
   property bool scanned: false
   property bool stateLoaded: false
   property string stateText: ""
 
-  // Where to put the defaults after the next scan: set alongside every IPC
-  // background change, which can be the last step of a theme switch.
-  property var pendingAnchor: null
+  // A theme switch waits for the scan of the new theme's backgrounds.
+  property var pendingThemeSwitch: null
   property bool rescanQueued: false
   property string pendingLink: ""
 
@@ -49,7 +48,7 @@ Item {
   property string pendingShellRaw: ""
 
   readonly property int focusedWorkspaceId: workspaceIdFor(Hyprland.focusedMonitor)
-  readonly property string focusedBackground: ready ? Model.backgroundFor(backgrounds, offset, pins, focusedWorkspaceId) : ""
+  readonly property string focusedBackground: ready ? Model.backgroundFor(backgrounds, pins, focusedWorkspaceId) : ""
 
   signal focusedTransitionRequested(string fromPath, string path, string finalPath, bool instant, bool force)
 
@@ -63,17 +62,14 @@ Item {
     return monitor && monitor.activeWorkspace ? monitor.activeWorkspace.id : 1
   }
 
-  // Show a background on the focused workspace and pin it there. A theme
-  // switch forces the transition and re-anchors the defaults on the new theme.
-  function showOnFocused(fromPath, path, finalPath, instant, force) {
+  // Show a background on the focused workspace and pin it there. The set can
+  // be the last step of a theme switch, so the scan looks for a new theme.
+  function showOnFocused(fromPath, path, instant) {
     path = String(path || "").trim()
-    finalPath = String(finalPath || path).trim()
     if (!path || !ready) return
-    focusedTransitionRequested(fromPath, path, finalPath, instant, force)
-    var workspaceId = focusedWorkspaceId
-    pins = Model.pinned(backgrounds, offset, pins, workspaceId, finalPath)
+    focusedTransitionRequested(fromPath, path, path, instant, false)
+    pins = Model.pinned(backgrounds, pins, focusedWorkspaceId, path)
     saveState()
-    pendingAnchor = { path: finalPath, workspaceId: workspaceId, force: force }
     rescan()
   }
 
@@ -85,11 +81,17 @@ Item {
     saveState()
   }
 
-  function anchor(path, workspaceId) {
-    var anchored = Model.anchored(backgrounds, path, workspaceId)
-    offset = anchored.offset
-    pins = anchored.pins
+  // A new theme starts over: every workspace shows its own default. A theme
+  // switch reveals the focused workspace's default from the old background.
+  function resetForTheme(themeSwitch) {
+    if (themeSwitch) {
+      var target = Model.defaultBackground(backgrounds, focusedWorkspaceId)
+      focusedTransitionRequested(themeSwitch.fromPath, target, target, false, true)
+    }
+    pins = {}
     saveState()
+    // omarchy-theme-set links its own pick after reporting the theme.
+    relinkTimer.restart()
   }
 
   function rescan() {
@@ -104,14 +106,12 @@ Item {
     backgrounds = scan.backgrounds
     scanned = true
 
-    var pending = pendingAnchor
-    pendingAnchor = null
+    var themeSwitch = pendingThemeSwitch
+    pendingThemeSwitch = null
     if (!ready) {
       if (stateLoaded) initialize()
-    } else if (pending && (pending.force || themeChanged)) {
-      anchor(pending.path, pending.workspaceId)
-    } else if (themeChanged) {
-      anchor("", focusedWorkspaceId)
+    } else if (themeSwitch || themeChanged) {
+      resetForTheme(themeSwitch)
     }
   }
 
@@ -124,15 +124,13 @@ Item {
   }
 
   function initialize() {
-    var saved = Model.restored(stateText, themeName)
-    offset = saved.offset
-    pins = saved.pins
+    pins = Model.restoredPins(stateText, themeName)
     ready = true
     saveState()
   }
 
   function saveState() {
-    if (ready) stateFile.setText(Model.serialized(themeName, offset, pins))
+    if (ready) stateFile.setText(Model.serialized(themeName, pins))
   }
 
   // Point current/background at the focused workspace's background.
@@ -169,9 +167,13 @@ Item {
     pendingShellRaw = ""
   }
 
-  function transitionBackgroundWithTheme(fromPath, path, finalPath, colorsB64, shellB64) {
+  // omarchy-theme-set names its own pick (path, finalPath). The plugin shows
+  // each workspace's own default instead, revealed from the old background.
+  function transitionBackgroundWithTheme(fromPath, colorsB64, shellB64) {
     setPendingTheme(colorsB64, shellB64)
-    showOnFocused(fromPath, path, finalPath, false, true)
+    if (!ready) return
+    pendingThemeSwitch = { fromPath: String(fromPath || "").trim() }
+    rescan()
   }
 
   function openSelector() {
@@ -239,10 +241,7 @@ Item {
     id: readlinkProc
     command: ["readlink", root.currentBackgroundLink]
     stdout: StdioCollector { id: readlinkOut }
-    onExited: {
-      var path = String(readlinkOut.text || "").trim()
-      root.showOnFocused("", path, path, false, false)
-    }
+    onExited: root.showOnFocused("", String(readlinkOut.text || "").trim(), false)
   }
 
   IpcHandler {
@@ -253,20 +252,27 @@ Item {
     }
 
     function set(path: string): void {
-      root.showOnFocused("", path, path, false, false)
+      root.showOnFocused("", path, false)
     }
 
     function setInstant(path: string): void {
-      root.showOnFocused("", path, path, true, false)
+      root.showOnFocused("", path, true)
     }
 
     function transition(fromPath: string, path: string): void {
-      root.showOnFocused(fromPath, path, path, false, false)
+      root.showOnFocused(fromPath, path, false)
     }
 
     function themeTransition(fromPath: string, path: string, finalPath: string, colorsB64: string, shellB64: string): void {
-      root.transitionBackgroundWithTheme(fromPath, path, finalPath, colorsB64, shellB64)
+      root.transitionBackgroundWithTheme(fromPath, colorsB64, shellB64)
     }
+  }
+
+  Timer {
+    id: relinkTimer
+    interval: 2000
+    repeat: false
+    onTriggered: root.syncLink()
   }
 
   Timer {
@@ -288,7 +294,7 @@ Item {
       // Each screen follows its own monitor's active workspace.
       readonly property var hyprMonitor: Hyprland.monitorFor(modelData)
       readonly property bool focused: !!hyprMonitor && !!Hyprland.focusedMonitor && hyprMonitor.name === Hyprland.focusedMonitor.name
-      readonly property string wantedBackground: root.ready ? Model.backgroundFor(root.backgrounds, root.offset, root.pins, root.workspaceIdFor(hyprMonitor)) : ""
+      readonly property string wantedBackground: root.ready ? Model.backgroundFor(root.backgrounds, root.pins, root.workspaceIdFor(hyprMonitor)) : ""
 
       property string currentBackground: ""
       property string displayedBackground: ""
