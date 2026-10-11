@@ -47,6 +47,14 @@ Removing the plugin switches the built-in background renderer back on. To keep t
 
 The plugin is derived from Omarchy's own [background plugin](https://github.com/omacom/omarchy/tree/quattro/shell/plugins/background) and keeps its IPC interface (`omarchy-shell background ...`), transitions and double-click actions. When Omarchy changes that plugin in a way this one has to follow, please open an issue.
 
+## Performance
+
+- **Idle:** no cost. The plugin runs no timers and polls nothing; a background that is on screen costs what Omarchy's built-in renderer costs.
+- **Each workspace switch:** the plugin decodes the incoming background at the screen's size and plays the reveal. The built-in renderer does nothing on a switch, because it shows the same background everywhere.
+- **Measured** with the Starship theme (WebP files from 6016x3384 to 8192x5461) on a 2560x1600 display: about 0.3 s of CPU per switch in the shell process, against 0.03 s with the built-in renderer. Memory peaks about 190 MB higher while the full-size file is decoded and drops back afterwards.
+- **Scales with file size:** most of that time goes into decoding the full-size file before it is scaled to the screen, so themes with smaller background files cost less per switch.
+- **Several monitors:** each monitor decodes for its own screen when its workspace changes.
+
 ## Development
 
 The mapping rules live in `Model.js`, without QML, and are tested with plain Node:
