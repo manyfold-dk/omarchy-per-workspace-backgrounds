@@ -33,6 +33,8 @@ Item {
   property string themeName: ""
   property var backgrounds: []
   property var pins: ({})
+  // Bumped on every theme change; see imageUrl.
+  property int themeGeneration: 0
   property bool ready: false
   property bool scanned: false
   property bool stateLoaded: false
@@ -54,8 +56,11 @@ Item {
 
   onFocusedBackgroundChanged: syncLink()
 
-  function imageUrl(path) {
-    return Util.fileUrl(path)
+  // The theme generation is part of every image URL. A new theme can ship a
+  // file under a name the old one used (every stock theme has an omarchy.png
+  // at the same path), and an unchanged URL would keep the old decode.
+  function imageUrl(path, generation) {
+    return path ? Util.fileUrl(path) + "?g=" + generation : ""
   }
 
   function workspaceIdFor(monitor) {
@@ -84,6 +89,7 @@ Item {
   // A new theme starts over: every workspace shows its own default. A theme
   // switch reveals the focused workspace's default from the old background.
   function resetForTheme(themeSwitch) {
+    themeGeneration += 1
     if (themeSwitch) {
       var target = Model.defaultBackground(backgrounds, focusedWorkspaceId)
       focusedTransitionRequested(themeSwitch.fromPath, target, target, false, true)
@@ -297,25 +303,44 @@ Item {
       readonly property string wantedBackground: root.ready ? Model.backgroundFor(root.backgrounds, root.pins, root.workspaceIdFor(hyprMonitor)) : ""
 
       property string currentBackground: ""
+      property int currentGeneration: 0
       property string displayedBackground: ""
+      property string displayedUrl: ""
       property string incomingBackground: ""
-      property string oldBackground: ""
+      property string incomingUrl: ""
+      property string oldUrl: ""
       property bool finishingTransition: false
       property int backgroundVersion: 0
       property int revealStartedVersion: -1
       property real revealProgress: 1
       property bool maskReady: false
 
-      onWantedBackgroundChanged: transitionBackground("", wantedBackground, wantedBackground, false, false)
+      // Decode at the size this screen shows, not the size a wallpaper ships
+      // at: theme backgrounds run to 8192x5461, 179 MB decoded, and every
+      // workspace switch decodes one. With PreserveAspectCrop, Qt decodes to
+      // cover sourceSize. The images wait for the window's size so nothing
+      // decodes at full size first.
+      readonly property bool sized: width > 0 && height > 0
+      readonly property size decodeSize: Qt.size(Math.ceil(width * modelData.devicePixelRatio), Math.ceil(height * modelData.devicePixelRatio))
+
+      // Follow the mapping once per event-loop turn, after a scan or a theme
+      // switch has finished changing it.
+      function followWanted() {
+        transitionBackground("", wantedBackground, wantedBackground, false, false)
+      }
+
+      onWantedBackgroundChanged: Qt.callLater(panel.followWanted)
       // A screen plugged in later starts with its background already chosen.
-      Component.onCompleted: transitionBackground("", wantedBackground, wantedBackground, false, false)
+      Component.onCompleted: followWanted()
 
       function transitionBackground(fromPath, path, finalPath, instant, force) {
         path = String(path || "").trim()
         finalPath = String(finalPath || path).trim()
         fromPath = String(fromPath || "").trim()
-        if (!path || (!force && finalPath === currentBackground)) return
+        var generation = root.themeGeneration
+        if (!path || (!force && finalPath === currentBackground && generation === currentGeneration)) return
         currentBackground = finalPath
+        currentGeneration = generation
         backgroundVersion += 1
         revealStartedVersion = -1
 
@@ -323,16 +348,28 @@ Item {
         finishingTransition = false
 
         if (instant || !displayedBackground) {
-          oldBackground = ""
+          oldUrl = ""
           incomingBackground = ""
+          incomingUrl = ""
           displayedBackground = path
+          displayedUrl = root.imageUrl(path, generation)
           revealProgress = 1
           return
         }
 
-        oldBackground = fromPath || displayedBackground
+        // The outgoing frame is the image base already shows, under the same
+        // URL, so it reuses that decode.
+        oldUrl = fromPath ? root.imageUrl(fromPath, generation) : displayedUrl
         incomingBackground = path
+        incomingUrl = root.imageUrl(path, generation)
         revealProgress = 0
+      }
+
+      function finishTransition() {
+        incomingBackground = ""
+        incomingUrl = ""
+        oldUrl = ""
+        finishingTransition = false
       }
 
       function startReveal() {
@@ -361,6 +398,9 @@ Item {
           panel.transitionBackground(fromPath, path, finalPath, instant, force)
           if (!panel.incomingBackground || panel.revealProgress >= 1) root.applyPendingTheme()
         }
+        function onThemeGenerationChanged() {
+          Qt.callLater(panel.followWanted)
+        }
       }
 
       NumberAnimation {
@@ -374,7 +414,11 @@ Item {
         onFinished: {
           if (panel.incomingBackground) {
             panel.displayedBackground = panel.currentBackground || panel.incomingBackground
+            panel.displayedUrl = root.imageUrl(panel.displayedBackground, panel.currentGeneration)
             panel.finishingTransition = true
+            // Base usually takes over the incoming frame's cached decode: it is
+            // ready at once and reports no status change.
+            if (base.status === Image.Ready) panel.finishTransition()
           }
           panel.revealProgress = 1
         }
@@ -404,31 +448,30 @@ Item {
       Image {
         id: base
         anchors.fill: parent
-        source: root.imageUrl(panel.displayedBackground)
+        source: panel.sized ? panel.displayedUrl : ""
+        sourceSize: panel.decodeSize
         fillMode: Image.PreserveAspectCrop
         asynchronous: true
         cache: true
         onStatusChanged: {
           // A pinned image that was moved or deleted falls back to the default.
           if (status === Image.Error) root.forget(panel.displayedBackground)
-          if (status === Image.Ready && panel.finishingTransition) {
-            panel.incomingBackground = ""
-            panel.oldBackground = ""
-            panel.finishingTransition = false
-          }
+          if (status === Image.Ready && panel.finishingTransition) panel.finishTransition()
         }
       }
 
       Image {
         id: oldFrame
         anchors.fill: parent
-        source: root.imageUrl(panel.oldBackground)
+        source: panel.sized ? panel.oldUrl : ""
+        sourceSize: panel.decodeSize
         fillMode: Image.PreserveAspectCrop
         asynchronous: true
-        cache: false
+        // Shares decodes with base and the incoming frame.
+        cache: true
         smooth: true
         mipmap: true
-        visible: panel.oldBackground !== "" && panel.revealProgress < 1
+        visible: panel.oldUrl !== "" && panel.revealProgress < 1
         onStatusChanged: panel.maybeStartReveal()
       }
 
@@ -448,10 +491,11 @@ Item {
         Image {
           id: incomingFrame
           anchors.fill: parent
-          source: root.imageUrl(panel.incomingBackground)
+          source: panel.sized ? panel.incomingUrl : ""
+          sourceSize: panel.decodeSize
           fillMode: Image.PreserveAspectCrop
           asynchronous: true
-          cache: false
+          cache: true
           smooth: true
           mipmap: true
           onStatusChanged: {
