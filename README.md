@@ -4,6 +4,8 @@ Every [Omarchy](https://omarchy.org) theme ships with a whole set of [background
 
 ![Switching between four workspaces: each one reveals its own background, from dawn to night](demo.gif)
 
+*The demo's four backgrounds were drawn for this repository ([`demo/`](demo/)); the bar and colors are those of the [Starship](https://github.com/omacom/omarchy/tree/quattro/themes/starship) theme.*
+
 There is nothing to set up. Workspace N shows the theme's Nth background, and the controls you already know -- the background picker, `omarchy theme bg next`, switching themes -- keep working, now per workspace.
 
 ## Install
@@ -56,7 +58,7 @@ The plugin is derived from Omarchy's own [background plugin](https://github.com/
 | CPU per workspace switch | 31 ms | 98 ms |
 | Memory peak while switching | +0 MB | +18 MB, released afterwards |
 
-Measured on a MacBook Pro (13-inch, 2020: Intel Core i5-1038NG7, Iris Plus Graphics G7, 16 GB) with its 2560x1600 display, running Omarchy 4.0 on Arch Linux with Hyprland 0.56, Quickshell 0.3 and Qt 6.11. The theme was Starship, whose backgrounds are WebP files from 6016x3384 to 8192x5461. CPU is the shell process's time over eight workspace switches, minus the same stretch idle.
+Measured on a MacBook Pro (13-inch, 2020: Intel Core i5-1038NG7, Iris Plus Graphics G7, 16 GB) with its 2560x1600 display, running Omarchy 4.0 on Arch Linux with Hyprland 0.56, Quickshell 0.3 and Qt 6.11. The theme was [Starship](https://github.com/omacom/omarchy/tree/quattro/themes/starship), whose backgrounds are WebP files from 6016x3384 to 8192x5461. CPU is the shell process's time over eight workspace switches, minus the same stretch idle.
 
 - **On a switch** the plugin decodes a screen-size copy of the incoming background and plays the reveal. The built-in renderer does nothing on a switch, because it shows the same background everywhere.
 - **The copies** are made in the background, at low priority, the first time a theme is used: a few seconds for Starship's four files. They live in `~/.cache/omarchy/workspace-backgrounds/`, about 1 MB per background per screen size (JPEG, or PNG for images with transparency), named by their content, and are deleted after 30 days unused -- also those of a theme you removed, since removing a theme does not touch the cache. Deleting the folder yourself is safe at any time: the plugin falls back to the original files and makes the copies again. A background no larger than the screen gets no copy; it is cheap to decode as it is.
@@ -76,4 +78,4 @@ omarchy plugin validate .
 
 ## License
 
-MIT -- see [LICENSE](LICENSE). Derived from Omarchy's background plugin, which is MIT-licensed by David Heinemeier Hansson. The demo GIF and the preview image are original artwork made for this repository, under the same license.
+MIT -- see [LICENSE](LICENSE). Derived from Omarchy's background plugin, which is MIT-licensed by David Heinemeier Hansson. The demo GIF, its backgrounds in [`demo/`](demo/) and the preview image are original artwork made for this repository, under the same license.

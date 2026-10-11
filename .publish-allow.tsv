@@ -1,5 +1,6 @@
 # Shape values this repository is allowed to carry. Shape rows only; the gate refuses a name row.
 # the plugin's own release number, which the Omarchy manifest requires, is not a version in use
 exact version	*	manifest.json
-# demo.gif is binary image data; byte runs in it look like IPv6 addresses to the text scan
+# binary image data: byte runs in these files look like IPv6 addresses to the text scan
 IPv6 address	*	demo.gif
+IPv6 address	*	demo/backgrounds/3-dusk.jpg
