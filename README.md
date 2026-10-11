@@ -1,4 +1,4 @@
-# Workspace Backgrounds
+# Per-Workspace Backgrounds
 
 Every [Omarchy](https://omarchy.org) theme ships with a whole set of [backgrounds](https://omarchy.org/manual/backgrounds/), yet you only ever see one of them: every workspace looks the same, and the rest of the set waits in a folder. This plugin gives each workspace its own background. Switch workspaces and the background turns over with Omarchy's own reveal, so you know where you are before you read the bar -- and the whole set your theme came with finally gets used.
 
@@ -11,7 +11,7 @@ There is nothing to set up. Workspace N shows the theme's Nth background, and th
 ## Install
 
 ```bash
-omarchy plugin add https://github.com/manyfold-dk/omarchy-workspace-backgrounds.git --enable
+omarchy plugin add https://github.com/manyfold-dk/omarchy-per-workspace-backgrounds.git --enable
 ```
 
 Omarchy shows you the URL and asks before it adds a plugin from git; see [Adding a plugin from git](https://omarchy.org/manual/shell-plugins/#adding-a-plugin-from-git) in the Omarchy manual. Enabling this plugin switches off the built-in background renderer, `omarchy.background`.
@@ -30,14 +30,14 @@ Omarchy shows you the URL and asks before it adds a plugin from git; see [Adding
 
 The plugin uses the backgrounds `omarchy theme bg next` cycles through, in the same order: the theme's own `backgrounds/` folder plus your extras in `~/.config/omarchy/backgrounds/<theme>/`, sorted by file name. The [Backgrounds](https://omarchy.org/manual/backgrounds/) page of the manual shows how to add extras. Number prefixes (`1-...`, `2-...`) decide which workspace gets which. With more workspaces than backgrounds, the list wraps around: on a theme with four backgrounds, workspace 5 shows the first one again.
 
-The plugin keeps its state in `~/.local/state/omarchy/workspace-backgrounds.json`: the theme it applies to and the backgrounds you picked per workspace. Omarchy's `~/.local/state/omarchy/current/background` link follows the focused workspace.
+The plugin keeps its state in `~/.local/state/omarchy/per-workspace-backgrounds.json`: the theme it applies to and the backgrounds you picked per workspace. Omarchy's `~/.local/state/omarchy/current/background` link follows the focused workspace.
 
 ## Remove
 
 ```bash
-omarchy plugin remove manyfold.workspace-backgrounds
-rm -f ~/.local/state/omarchy/workspace-backgrounds.json
-rm -rf ~/.cache/omarchy/workspace-backgrounds
+omarchy plugin remove manyfold.per-workspace-backgrounds
+rm -f ~/.local/state/omarchy/per-workspace-backgrounds.json
+rm -rf ~/.cache/omarchy/per-workspace-backgrounds
 ```
 
 Removing the plugin switches the built-in background renderer back on. To keep the plugin installed but use the built-in renderer for a while, see [Turning them on and off](https://omarchy.org/manual/shell-plugins/#turning-them-on-and-off).
@@ -61,7 +61,7 @@ The plugin is derived from Omarchy's own [background plugin](https://github.com/
 Measured on a MacBook Pro (13-inch, 2020: Intel Core i5-1038NG7, Iris Plus Graphics G7, 16 GB) with its 2560x1600 display, running Omarchy 4.0 on Arch Linux with Hyprland 0.56, Quickshell 0.3 and Qt 6.11. The theme was [Starship](https://github.com/omacom/omarchy/tree/quattro/themes/starship), whose backgrounds are WebP files from 6016x3384 to 8192x5461. CPU is the shell process's time over eight workspace switches, minus the same stretch idle.
 
 - **On a switch** the plugin decodes a screen-size copy of the incoming background and plays the reveal. The built-in renderer does nothing on a switch, because it shows the same background everywhere.
-- **The copies** are made in the background, at low priority, the first time a theme is used: a few seconds for Starship's four files. They live in `~/.cache/omarchy/workspace-backgrounds/`, about 1 MB per background per screen size (JPEG, or PNG for images with transparency), named by their content, and are deleted after 30 days unused -- also those of a theme you removed, since removing a theme does not touch the cache. Deleting the folder yourself is safe at any time: the plugin falls back to the original files and makes the copies again. A background no larger than the screen gets no copy; it is cheap to decode as it is.
+- **The copies** are made in the background, at low priority, the first time a theme is used: a few seconds for Starship's four files. They live in `~/.cache/omarchy/per-workspace-backgrounds/`, about 1 MB per background per screen size (JPEG, or PNG for images with transparency), named by their content, and are deleted after 30 days unused -- also those of a theme you removed, since removing a theme does not touch the cache. Deleting the folder yourself is safe at any time: the plugin falls back to the original files and makes the copies again. A background no larger than the screen gets no copy; it is cheap to decode as it is.
 - **Until a copy is ready**, right after a theme is used for the first time, a switch decodes the full-size file instead: about 0.3 s of CPU with Starship on the machine above.
 - **Several monitors** each decode for their own screen, with copies per screen size.
 

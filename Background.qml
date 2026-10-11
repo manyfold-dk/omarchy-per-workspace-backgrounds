@@ -26,7 +26,7 @@ Item {
   readonly property string home: Quickshell.env("HOME")
   readonly property string stateHome: home + "/.local/state"
   readonly property string currentBackgroundLink: stateHome + "/omarchy/current/background"
-  readonly property string statePath: stateHome + "/omarchy/workspace-backgrounds.json"
+  readonly property string statePath: stateHome + "/omarchy/per-workspace-backgrounds.json"
 
   // The mapping (see Model.js), ready once the first scan and the saved state
   // are both in.
@@ -39,7 +39,7 @@ Item {
   // Screen-size copies of the backgrounds ("WxH|path" -> copy), filled in by
   // screen-copies.sh as each copy is ready. A switch then decodes a few
   // megapixels instead of the full file.
-  readonly property string copiesDir: (Quickshell.env("XDG_CACHE_HOME") || home + "/.cache") + "/omarchy/workspace-backgrounds"
+  readonly property string copiesDir: (Quickshell.env("XDG_CACHE_HOME") || home + "/.cache") + "/omarchy/per-workspace-backgrounds"
   readonly property string copiesScript: decodeURIComponent(String(Qt.resolvedUrl("screen-copies.sh")).replace(/^file:\/\//, ""))
   property var screenCopies: ({})
   property bool copiesQueued: false

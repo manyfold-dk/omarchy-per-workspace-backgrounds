@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
-  "id": "manyfold.workspace-backgrounds",
-  "name": "Workspace Backgrounds",
+  "id": "manyfold.per-workspace-backgrounds",
+  "name": "Per-Workspace Backgrounds",
   "version": "1.0.0",
   "author": "Manyfold",
-  "description": "A different theme background on each workspace. Replaces the built-in background renderer; bg next and the background switcher change the focused workspace only.",
+  "description": "Every workspace gets its own background from your theme's set, so you know where you are at a glance. No setup: the background picker and bg next work per workspace.",
   "kinds": [
     "service"
   ],
