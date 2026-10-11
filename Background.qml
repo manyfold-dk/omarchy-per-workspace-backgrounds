@@ -95,6 +95,18 @@ Item {
     copiesProc.running = true
   }
 
+  // imageUrl builds every URL: the original file's, unless a copy was used.
+  function usesCopy(url, path) {
+    return !!url && !!path && url.slice(0, url.indexOf("?")) !== Util.fileUrl(path)
+  }
+
+  // A copy that will not load (deleted along with the cache, say) is dropped,
+  // so the original is used, and the next run makes it again.
+  function dropCopy(size, path) {
+    screenCopies = Model.withoutCopy(screenCopies, size, path)
+    copiesTimer.restart()
+  }
+
   function addScreenCopy(line) {
     // Copies made for the previous theme can name a path the new theme reuses.
     if (copiesProc.generation !== themeGeneration) return
@@ -431,6 +443,14 @@ Item {
         revealProgress = 0
       }
 
+      // Falls back from a copy that failed to load to the original file.
+      // Returns whether there was a copy to fall back from.
+      function dropFailedCopy(url, path) {
+        if (!root.usesCopy(url, path)) return false
+        root.dropCopy(sizeKey, path)
+        return true
+      }
+
       function finishTransition() {
         incomingBackground = ""
         incomingUrl = ""
@@ -523,8 +543,12 @@ Item {
         asynchronous: true
         cache: true
         onStatusChanged: {
-          // A pinned image that was moved or deleted falls back to the default.
-          if (status === Image.Error) root.forget(panel.displayedBackground)
+          if (status === Image.Error) {
+            if (panel.dropFailedCopy(panel.displayedUrl, panel.displayedBackground))
+              panel.displayedUrl = root.imageUrl(panel.displayedBackground, panel.currentGeneration, panel.sizeKey)
+            // A pinned image that was moved or deleted falls back to the default.
+            else root.forget(panel.displayedBackground)
+          }
           if (status === Image.Ready && panel.finishingTransition) panel.finishTransition()
         }
       }
@@ -568,7 +592,11 @@ Item {
           smooth: true
           mipmap: true
           onStatusChanged: {
-            if (status === Image.Error) root.forget(panel.incomingBackground)
+            if (status === Image.Error) {
+              if (panel.dropFailedCopy(panel.incomingUrl, panel.incomingBackground))
+                panel.incomingUrl = root.imageUrl(panel.incomingBackground, panel.currentGeneration, panel.sizeKey)
+              else root.forget(panel.incomingBackground)
+            }
             panel.maybeStartReveal()
           }
         }

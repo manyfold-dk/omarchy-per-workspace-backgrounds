@@ -97,3 +97,10 @@ function copyPaths(backgrounds, pins) {
   }
   return paths
 }
+
+// The copies without one, for a copy that failed to load.
+function withoutCopy(copies, size, path) {
+  var next = Object.assign({}, copies)
+  delete next[copyKey(size, path)]
+  return next
+}

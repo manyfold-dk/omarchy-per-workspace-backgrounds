@@ -103,3 +103,9 @@ test("malformed screen copy lines are ignored", () => {
 test("copy paths are the theme's backgrounds, then pinned images from elsewhere, once each", () => {
   assert.deepEqual(plain(Model.copyPaths(BACKGROUNDS, { 2: ELSEWHERE, 3: A, 7: ELSEWHERE })), [...BACKGROUNDS, ELSEWHERE]);
 });
+
+test("a copy that failed to load is dropped for its size only", () => {
+  const copies = { [Model.copyKey("2560x1600", A)]: "/cache/a.jpg", [Model.copyKey("1920x1080", A)]: "/cache/a-small.jpg" };
+  assert.deepEqual(plain(Model.withoutCopy(copies, "2560x1600", A)), { [Model.copyKey("1920x1080", A)]: "/cache/a-small.jpg" });
+  assert.equal(Object.keys(copies).length, 2);
+});
