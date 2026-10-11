@@ -1,0 +1,3 @@
+# Shape values this repository is allowed to carry. Shape rows only; the gate refuses a name row.
+# the plugin's own release number, which the Omarchy manifest requires, is not a version in use
+exact version	*	manifest.json

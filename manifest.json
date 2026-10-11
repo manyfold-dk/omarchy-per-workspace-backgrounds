@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "manyfold.workspace-backgrounds",
+  "name": "Workspace Backgrounds",
+  "version": "1.0.0",
+  "author": "Manyfold",
+  "description": "A different theme background on each workspace. Replaces the built-in background renderer; bg next and the background switcher change the focused workspace only.",
+  "kinds": [
+    "service"
+  ],
+  "entryPoints": {
+    "service": "Background.qml"
+  },
+  "omarchy": {
+    "clonedFrom": "omarchy.background"
+  }
+}
