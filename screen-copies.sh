@@ -8,8 +8,8 @@
 # that copy is ready. An image no larger than the screen gets no copy: it is
 # cheap to decode as it is. Copies are named by content, so a theme that
 # reuses a file name (every stock theme has an omarchy.png) gets its own copy.
-# Opaque images become JPEG; images with an alpha channel become PNG. Copies
-# unused for 30 days are deleted.
+# Fully opaque images become JPEG; images with any transparency become PNG.
+# Copies unused for 30 days are deleted.
 
 set -uo pipefail
 
@@ -20,20 +20,8 @@ mkdir -p "$dir" || exit 1
 
 for src in "$@"; do
   [[ -f $src ]] || continue
-  # %[channels] is the colour space and the channel count, alpha included:
-  # "srgb 3.0" is opaque, "srgb 4.0" has an alpha channel.
-  read -r width height colorspace count _ < <(magick identify -ping -format '%w %h %[channels]\n' "$src[0]" 2>/dev/null | head -n1) || continue
-  [[ $width =~ ^[0-9]+$ && $height =~ ^[0-9]+$ && ${count%%.*} =~ ^[0-9]+$ ]] || continue
-  case $colorspace in
-    *gray*) colour_channels=1 ;;
-    cmyk*) colour_channels=4 ;;
-    *) colour_channels=3 ;;
-  esac
-  if (( ${count%%.*} > colour_channels )); then
-    format=png
-  else
-    format=jpg
-  fi
+  read -r width height < <(magick identify -ping -format '%w %h\n' "$src[0]" 2>/dev/null | head -n1) || continue
+  [[ $width =~ ^[0-9]+$ && $height =~ ^[0-9]+$ ]] || continue
   key=$(sha1sum <"$src" | cut -c1-16)
 
   for size in "${sizes[@]}"; do
@@ -43,15 +31,32 @@ for src in "$@"; do
     # Only a file that has to shrink to cover the screen is worth a copy.
     (( width > screen_width && height > screen_height )) || continue
 
-    copy="$dir/$key-$size.$format"
-    if [[ -s $copy ]]; then
+    copy=""
+    for existing in "$dir/$key-$size.jpg" "$dir/$key-$size.png"; do
+      [[ -s $existing ]] && { copy=$existing; break; }
+    done
+    if [[ -n $copy ]]; then
       touch -c "$copy"
     else
-      partial="$copy.partial.$$"
-      if ! nice -n 10 magick "$src[0]" -resize "${size}^" -strip -quality 95 "$format:$partial"; then
-        rm -f "$partial"
+      # Scale first, then look at the pixels: an alpha channel says nothing,
+      # since PNGs report one whether or not any pixel uses it.
+      scaled="$dir/$key-$size.partial.$$.miff"
+      if ! nice -n 10 magick "$src[0]" -resize "${size}^" -strip "miff:$scaled"; then
+        rm -f "$scaled"
         continue
       fi
+      if [[ $(magick identify -format '%[opaque]' "$scaled" 2>/dev/null) == True ]]; then
+        format=jpg
+      else
+        format=png
+      fi
+      copy="$dir/$key-$size.$format"
+      partial="$copy.partial.$$"
+      if ! nice -n 10 magick "$scaled" -quality 95 "$format:$partial"; then
+        rm -f "$scaled" "$partial"
+        continue
+      fi
+      rm -f "$scaled"
       mv -f "$partial" "$copy"
     fi
     printf '%s|%s\t%s\n' "$size" "$src" "$copy"
