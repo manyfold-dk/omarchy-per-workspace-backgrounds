@@ -57,6 +57,9 @@ Item {
   readonly property string copiesRequest: ready && decodeSizes.length > 0 ? JSON.stringify([themeGeneration, decodeSizes, Model.copyPaths(backgrounds, pins)]) : ""
 
   onCopiesRequestChanged: copiesTimer.restart()
+  // Set over IPC by OWE, Omarchy's wallpaper engine, while it draws a video
+  // background itself. The panels hide so they do not cover it.
+  property bool suspended: false
   property bool ready: false
   property bool scanned: false
   property bool stateLoaded: false
@@ -344,6 +347,18 @@ Item {
       root.showOnFocused("", path, true)
     }
 
+    // OWE calls this when it starts. If the call fails it enables
+    // omarchy.background instead, and that switches this plugin off.
+    function setSuspended(value: string): void {
+      root.suspended = value === "true"
+    }
+
+    // A theme switch names its next background so the renderer can decode it
+    // early. Each workspace shows its own default after a theme switch, so
+    // there is nothing to decode ahead.
+    function prepare(path: string): void {
+    }
+
     function transition(fromPath: string, path: string): void {
       root.showOnFocused(fromPath, path, false)
     }
@@ -517,7 +532,7 @@ Item {
       }
 
       screen: modelData
-      visible: !remapGuard.remapping
+      visible: !remapGuard.remapping && !root.suspended
       anchors { top: true; bottom: true; left: true; right: true }
 
       ScreenMoveRemap {
